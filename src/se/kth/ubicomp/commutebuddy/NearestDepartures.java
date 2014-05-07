@@ -1,5 +1,7 @@
 package se.kth.ubicomp.commutebuddy;
 
+import java.util.ArrayList;
+import java.util.HashMap;
 import java.util.List;
 import java.util.Locale;
 
@@ -24,6 +26,7 @@ import android.view.Menu;
 import android.view.MenuItem;
 import android.view.View;
 import android.view.ViewGroup;
+import android.widget.ExpandableListView;
 import android.widget.TextView;
 
 public class NearestDepartures extends ActionBarActivity implements LocationListener {
@@ -135,7 +138,14 @@ public class NearestDepartures extends ActionBarActivity implements LocationList
 		private static final String ARG_SECTION_NUMBER = "section_number";
 		private TextView temperatureTextView, conditionTextView;
 		private WeatherInfo weatherInfo;
+		
+		private static List<Station> stationsNear;
 
+		private ExpandableListAdapter listAdapter;
+		private ExpandableListView expListView;
+		private List<String> listDataHeader;
+		private HashMap<String, List<String>> listDataChild;
+		
 		/**
 		 * Returns a new instance of this fragment for the given section number.
 		 */
@@ -168,7 +178,32 @@ public class NearestDepartures extends ActionBarActivity implements LocationList
 			new retrieve_weatherTask().execute();
 			
 			refreshDepartures();
+			
+			// get the listview
+	        expListView = (ExpandableListView) rootView.findViewById(R.id.lvExp);
+	 
+	        
 			return rootView;
+		}
+
+		private void prepareListData() {
+			listDataHeader = new ArrayList<String>();
+	        listDataChild = new HashMap<String, List<String>>();
+	 
+	        // Adding  data
+	        int currPos = 0;
+	        for(Station station: stationsNear) {
+	        	listDataHeader.add(station.getName() +"(" + station.getDistance() + ")");
+	        	List<String> departures = new ArrayList<String>();
+	        	if(station.getDepartures() != null){
+	        		for(Departure dep: station.getDepartures()){
+	        			departures.add(dep.getLine() + " - " + dep.getDestination() + ": " + dep.getMinsUntilDeparture());
+	        		}
+	        	}
+	        	listDataChild.put(listDataHeader.get(currPos), departures);
+	        	currPos++;
+	        }
+			
 		}
 
 		protected class retrieve_weatherTask extends
@@ -206,7 +241,7 @@ public class NearestDepartures extends ActionBarActivity implements LocationList
 	        @Override
 	        protected List<Station> doInBackground(Location... locations) {
 	        	
-	        	List<Station> stationsNear = SlResRobotService.findStationsNear(locations[0], includeBus);
+	        	stationsNear = SlResRobotService.findStationsNear(locations[0], includeBus);
 	            
 	            //for each station find next departure:
 	        	for(Station station: stationsNear) {
@@ -221,11 +256,13 @@ public class NearestDepartures extends ActionBarActivity implements LocationList
 
 	        @Override
 	        protected void onPostExecute(List<Station> stationsNearcursor) {
-//	            FragmentManager fragmentManager = getActivity().getSupportFragmentManager();
-	            
-	            if(stationsNearcursor != null) {
-	            	//do something
-	            }
+	        	// preparing list data
+		        prepareListData();
+		 
+		        listAdapter = new ExpandableListAdapter(getActivity(), listDataHeader, listDataChild);
+		 
+		        // setting list adapter
+		        expListView.setAdapter(listAdapter);
 	        }
 	    }
 	    

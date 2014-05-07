@@ -23,6 +23,7 @@ public class SlResRobotService {
 	private static final String APIURL = "https://api.trafiklab.se/samtrafiken/resrobotstops/";
 	private static final String CARRIER_ID = "275";
 	private static final String RANGE = "1500"; //range around position for which stations are looked up
+	private static final String TIMESPAN = "30"; //timespan for which departures should be queried
 
 	
 	/**
@@ -38,7 +39,7 @@ public class SlResRobotService {
 			URL url = new URL(APIURL + "GetDepartures.json"
 					+ "?apiVersion=2.1&key=" + ApiKeys.RESROBOT_KEY
 					+ "&coordSys=WGS84" + "&locationId=" + stationId
-					+ "&timeSpan=120");
+					+ "&timeSpan=" + TIMESPAN);
 
 			JSONArray data = new JSONObject(Utils.fetchURL(url, "ISO-8859-1"))
 					.getJSONObject("getdeparturesresult").getJSONArray(
