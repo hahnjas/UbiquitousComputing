@@ -4,9 +4,24 @@
     tools:context="se.kth.ubicomp.commutebuddy.NearestDepartures" >
 
     <item
-        android:id="@+id/action_settings"
-        android:orderInCategory="100"
-        android:title="@string/action_settings"
-        app:showAsAction="never"/>
+        android:id="@+id/action_refresh"
+        android:checked="false"
+        android:showAsAction="never"
+        android:title="@string/refresh">
+    </item>
+    <item
+        android:id="@+id/action_bus"
+        android:checkable="true"
+        android:checked="false"
+        android:showAsAction="never"
+        android:title="@string/action_bus">
+    </item>
+    <item
+        android:id="@+id/action_range"
+        android:checkable="true"
+        android:checked="false"
+        android:showAsAction="never"
+        android:title="@string/action_range">
+    </item>
 
 </menu>

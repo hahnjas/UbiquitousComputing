@@ -2,7 +2,10 @@
 <resources>
 
     <string name="app_name">CommuteBuddy</string>
-     <string name="weather">Weather</string>
+    <string name="weather">Weather</string>
+    <string name="refresh">Refresh</string>
+    <string name="action_bus">Include Bus Stops</string>
+    <string name="action_range">Larger Radius</string>
     <string name="title_section1">Section 1</string>
     <string name="title_section2">Section 2</string>
     <string name="title_section3">Section 3</string>

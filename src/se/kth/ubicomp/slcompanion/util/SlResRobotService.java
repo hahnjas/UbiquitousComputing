@@ -11,6 +11,7 @@ import org.json.JSONArray;
 import org.json.JSONException;
 import org.json.JSONObject;
 
+import se.kth.ubicomp.commutebuddy.NearestDepartures;
 import se.kth.ubicomp.slcompanion.model.Departure;
 import se.kth.ubicomp.slcompanion.model.Station;
 import android.database.MatrixCursor;
@@ -22,7 +23,8 @@ public class SlResRobotService {
 	private static final String ENDPOINT = "https://api.trafiklab.se/samtrafiken/resrobot/";
 	private static final String APIURL = "https://api.trafiklab.se/samtrafiken/resrobotstops/";
 	private static final String CARRIER_ID = "275";
-	private static final String RANGE = "1500"; //range around position for which stations are looked up
+	private static final String RANGE_LONG = "1500"; //range around position for which stations are looked up
+	private static final String RANGE_SHORT = "700"; //range around position for which stations are looked up
 	private static final String TIMESPAN = "30"; //timespan for which departures should be queried
 
 	
@@ -45,8 +47,6 @@ public class SlResRobotService {
 					.getJSONObject("getdeparturesresult").getJSONArray(
 							"departuresegment");
 
-			MatrixCursor cursor = new MatrixCursor(new String[] { "_id",
-					"direction", "number", "time", "type" }, data.length());
 			for (int i = 0; i < data.length(); i++) {
 				JSONObject o = data.getJSONObject(i);
 
@@ -63,12 +63,6 @@ public class SlResRobotService {
 					
 					departures.add(new Departure(direction, lineNumber, timeDiffInMin));
 					
-					cursor.addRow(new Object[] {
-							i,
-							direction,
-							lineNumber,
-							timeDiffInMin,
-							translateDisplayType(((JSONObject) motObject).getString("@displaytype")), });
 			}
 			return departures;
 		} catch (Exception e) {
@@ -79,6 +73,9 @@ public class SlResRobotService {
 	}
 
 
+	/*
+	 * Not used - TODO remove?
+	 */
 	public static MatrixCursor getDestinationList(String stationId) {
 		try {
 			URL url = new URL(APIURL + "GetDepartures.json"
@@ -125,13 +122,17 @@ public class SlResRobotService {
 	 * @param includeBus
 	 * @return
 	 */
-	public static List<Station> findStationsNear(Location location, boolean includeBus) {
-		MatrixCursor cursor = null;
+	public static List<Station> findStationsNear(Location location, boolean includeBus, boolean largeRadius) {
 		List<Station> stations = new ArrayList<Station>();
 		try {
+			String range;
+			if(largeRadius)
+				range = RANGE_LONG;
+			else
+				range = RANGE_SHORT;
 			URL url = new URL(ENDPOINT + "StationsInZone.json"
 					+ "?apiVersion=2.1&key=" + ApiKeys.RESROBOT_SOKRESA_KEY
-					+ "&coordSys=WGS84&radius="+ RANGE + "&centerX="
+					+ "&coordSys=WGS84&radius="+ range + "&centerX="
 					+ location.getLongitude() + "&centerY="
 					+ location.getLatitude());
 
@@ -139,8 +140,6 @@ public class SlResRobotService {
 					.getJSONObject("stationsinzoneresult").getJSONArray(
 							"location");
 
-			cursor = new MatrixCursor(new String[] { "_id",
-					"name", "lgn", "lat","distance", "types" }, data.length());
 			for (int i = 0; i < data.length(); i++) {
 				JSONObject o = data.getJSONObject(i);
 
@@ -180,8 +179,6 @@ public class SlResRobotService {
 				String name = o.getString("name");
 				int stationId = o.getInt("@id");
 				stations.add(new Station(name, stationId, distance, types));
-				cursor.addRow(new Object[] { stationId,
-						name, l.getLongitude(), l.getLatitude(), distance, types });
 			}
 			return stations;
 		} catch (IOException e) {

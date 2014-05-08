@@ -10,15 +10,19 @@ import se.kth.ubicomp.slcompanion.model.Station;
 import se.kth.ubicomp.slcompanion.model.WeatherInfo;
 import se.kth.ubicomp.slcompanion.util.SlResRobotService;
 import se.kth.ubicomp.slcompanion.util.YahooWeather;
+import android.annotation.SuppressLint;
+import android.annotation.TargetApi;
 import android.content.Context;
 import android.location.Location;
 import android.location.LocationListener;
 import android.location.LocationManager;
 import android.os.AsyncTask;
+import android.os.Build;
 import android.os.Bundle;
 import android.support.v4.app.Fragment;
 import android.support.v4.app.FragmentManager;
 import android.support.v4.app.FragmentPagerAdapter;
+import android.support.v4.app.FragmentTransaction;
 import android.support.v4.view.ViewPager;
 import android.support.v7.app.ActionBarActivity;
 import android.view.LayoutInflater;
@@ -26,9 +30,12 @@ import android.view.Menu;
 import android.view.MenuItem;
 import android.view.View;
 import android.view.ViewGroup;
+import android.widget.CheckBox;
 import android.widget.ExpandableListView;
 import android.widget.TextView;
+import android.widget.Toast;
 
+@SuppressLint("NewApi")
 public class NearestDepartures extends ActionBarActivity implements LocationListener {
 
 	/**
@@ -49,9 +56,17 @@ public class NearestDepartures extends ActionBarActivity implements LocationList
 
 	private static boolean includeBus = false;
 
+	private static boolean largeRadius = false;
+
 	@Override
 	protected void onCreate(Bundle savedInstanceState) {
 		super.onCreate(savedInstanceState);
+		if (savedInstanceState != null) {
+			NearestDepartures.includeBus = savedInstanceState.getBoolean("showBuses");
+			NearestDepartures.largeRadius = savedInstanceState.getBoolean("largeRadius");
+			((MenuItem)findViewById(R.id.action_bus)).setChecked(includeBus);
+			((MenuItem)findViewById(R.id.action_range)).setChecked(largeRadius);
+		}
 		setContentView(R.layout.activity_nearest_departures);
 
 		// Create the adapter that will return a fragment for each of the three
@@ -76,16 +91,44 @@ public class NearestDepartures extends ActionBarActivity implements LocationList
 		return true;
 	}
 
+	@TargetApi(Build.VERSION_CODES.HONEYCOMB)
 	@Override
 	public boolean onOptionsItemSelected(MenuItem item) {
 		// Handle action bar item clicks here. The action bar will
 		// automatically handle clicks on the Home/Up button, so long
 		// as you specify a parent activity in AndroidManifest.xml.
 		int id = item.getItemId();
-		if (id == R.id.action_settings) {
-			return true;
+		switch (id) {
+		case R.id.action_bus:
+			NearestDepartures.includeBus = !NearestDepartures.includeBus;
+			item.setChecked(includeBus);
+			break;
+		case R.id.action_range:
+			NearestDepartures.largeRadius = !NearestDepartures.largeRadius;
+			item.setChecked(largeRadius);
+			break;
+		default:
+			break;
 		}
+		refreshData();
 		return super.onOptionsItemSelected(item);
+	}
+	
+	private void refreshData() {
+		PlaceholderFragment fragment = (PlaceholderFragment) getSupportFragmentManager().getFragments().get(0);
+		
+		fragment.fetchWeatherInfo();
+		fragment.refreshDepartures();
+		
+	}
+
+	/** 
+	 * persist user settings
+	 */
+	protected void onSaveInstanceState(Bundle instanceState) {
+		super.onSaveInstanceState(instanceState);
+		instanceState.putBoolean("showBuses", NearestDepartures.includeBus);
+		instanceState.putBoolean("largeRadius", NearestDepartures.largeRadius);
 	}
 
 	/**
@@ -157,6 +200,8 @@ public class NearestDepartures extends ActionBarActivity implements LocationList
 			return fragment;
 		}
 
+
+
 		public PlaceholderFragment() {
 		}
 
@@ -174,14 +219,14 @@ public class NearestDepartures extends ActionBarActivity implements LocationList
 					.findViewById(R.id.conditionText);
 			temperatureTextView.setText("not available");
 			conditionTextView.setText("not available");
-			//fetch weather data
-			new retrieve_weatherTask().execute();
+			// get the listview
+			expListView = (ExpandableListView) rootView.findViewById(R.id.lvExp);
 			
+			//fetch weather data
+			fetchWeatherInfo();
+			//fetch SL info
 			refreshDepartures();
 			
-			// get the listview
-	        expListView = (ExpandableListView) rootView.findViewById(R.id.lvExp);
-	 
 	        
 			return rootView;
 		}
@@ -195,10 +240,13 @@ public class NearestDepartures extends ActionBarActivity implements LocationList
 	        for(Station station: stationsNear) {
 	        	listDataHeader.add(station.getName() +"(" + station.getDistance() + ")");
 	        	List<String> departures = new ArrayList<String>();
-	        	if(station.getDepartures() != null){
+	        	if(station.getDepartures() != null && !station.getDepartures().isEmpty()){
 	        		for(Departure dep: station.getDepartures()){
 	        			departures.add(dep.getLine() + " - " + dep.getDestination() + ": " + dep.getMinsUntilDeparture());
 	        		}
+	        	}
+	        	else {
+	        		departures.add("No departures");
 	        	}
 	        	listDataChild.put(listDataHeader.get(currPos), departures);
 	        	currPos++;
@@ -222,7 +270,29 @@ public class NearestDepartures extends ActionBarActivity implements LocationList
 			protected void onPostExecute(String result) {
 				temperatureTextView.setText("Temperature:" + weatherInfo.getTemperature());
 				conditionTextView.setText("Condition:" + weatherInfo.getCondition());
+				// 32 = sunny
+				// 34 = fair 
+				// 36 = hot
+				switch (weatherInfo.getConditionCode()) {
+				case 32:
+					Toast.makeText(getActivity(), "It's sunny - you should use your bike!", Toast.LENGTH_SHORT).show();
+					break;
+				case 34:
+					Toast.makeText(getActivity(), "It's fair - you should use your bike!", Toast.LENGTH_SHORT).show();
+					break;
+				case 36:
+					Toast.makeText(getActivity(), "It's hot - you should use your bike!", Toast.LENGTH_SHORT).show();
+					break;
+
+				default:
+					Toast.makeText(getActivity(), "It's okay if you don't want to bike with this weather ;-)", Toast.LENGTH_SHORT).show();
+					break;
+				}
 			}
+		}
+		
+		public void fetchWeatherInfo() {
+			new retrieve_weatherTask().execute();
 		}
 		
 		private void refreshDepartures() {
@@ -241,7 +311,7 @@ public class NearestDepartures extends ActionBarActivity implements LocationList
 	        @Override
 	        protected List<Station> doInBackground(Location... locations) {
 	        	
-	        	stationsNear = SlResRobotService.findStationsNear(locations[0], includeBus);
+	        	stationsNear = SlResRobotService.findStationsNear(locations[0], includeBus, largeRadius);
 	            
 	            //for each station find next departure:
 	        	for(Station station: stationsNear) {
@@ -263,6 +333,7 @@ public class NearestDepartures extends ActionBarActivity implements LocationList
 		 
 		        // setting list adapter
 		        expListView.setAdapter(listAdapter);
+		        expListView.expandGroup(0); 
 	        }
 	    }
 	    
