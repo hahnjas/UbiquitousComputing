@@ -16,13 +16,14 @@ import android.content.Context;
 import android.location.Location;
 import android.location.LocationListener;
 import android.location.LocationManager;
+import android.net.ConnectivityManager;
+import android.net.NetworkInfo;
 import android.os.AsyncTask;
 import android.os.Build;
 import android.os.Bundle;
 import android.support.v4.app.Fragment;
 import android.support.v4.app.FragmentManager;
 import android.support.v4.app.FragmentPagerAdapter;
-import android.support.v4.app.FragmentTransaction;
 import android.support.v4.view.ViewPager;
 import android.support.v7.app.ActionBarActivity;
 import android.view.LayoutInflater;
@@ -30,13 +31,13 @@ import android.view.Menu;
 import android.view.MenuItem;
 import android.view.View;
 import android.view.ViewGroup;
-import android.widget.CheckBox;
 import android.widget.ExpandableListView;
 import android.widget.TextView;
 import android.widget.Toast;
 
 @SuppressLint("NewApi")
-public class NearestDepartures extends ActionBarActivity implements LocationListener {
+public class NearestDepartures extends ActionBarActivity implements
+		LocationListener {
 
 	/**
 	 * The {@link android.support.v4.view.PagerAdapter} that will provide
@@ -52,6 +53,8 @@ public class NearestDepartures extends ActionBarActivity implements LocationList
 	 */
 	ViewPager mViewPager;
 
+	private static Location latestLocation;
+
 	private static LocationManager locationManager;
 
 	private static boolean includeBus = false;
@@ -61,13 +64,22 @@ public class NearestDepartures extends ActionBarActivity implements LocationList
 	@Override
 	protected void onCreate(Bundle savedInstanceState) {
 		super.onCreate(savedInstanceState);
-		if (savedInstanceState != null) {
-			NearestDepartures.includeBus = savedInstanceState.getBoolean("showBuses");
-			NearestDepartures.largeRadius = savedInstanceState.getBoolean("largeRadius");
-			((MenuItem)findViewById(R.id.action_bus)).setChecked(includeBus);
-			((MenuItem)findViewById(R.id.action_range)).setChecked(largeRadius);
+		if (!isOnline()) {
+			Toast.makeText(this,
+					"You need an internet connection for this app",
+					Toast.LENGTH_LONG).show();
+			return;
 		}
 		setContentView(R.layout.activity_nearest_departures);
+		if (savedInstanceState != null) {
+			NearestDepartures.includeBus = savedInstanceState
+					.getBoolean("showBuses");
+			NearestDepartures.largeRadius = savedInstanceState
+					.getBoolean("largeRadius");
+			((MenuItem) findViewById(R.id.action_bus)).setChecked(includeBus);
+			((MenuItem) findViewById(R.id.action_range))
+					.setChecked(largeRadius);
+		}
 
 		// Create the adapter that will return a fragment for each of the three
 		// primary sections of the activity.
@@ -77,10 +89,29 @@ public class NearestDepartures extends ActionBarActivity implements LocationList
 		// Set up the ViewPager with the sections adapter.
 		mViewPager = (ViewPager) findViewById(R.id.pager);
 		mViewPager.setAdapter(mSectionsPagerAdapter);
-		
-		locationManager = (LocationManager) getSystemService(Context.LOCATION_SERVICE);
-        locationManager.requestLocationUpdates(LocationManager.GPS_PROVIDER, 0, 0, this);
 
+		locationManager = (LocationManager) getSystemService(Context.LOCATION_SERVICE);
+		locationManager.requestLocationUpdates(LocationManager.GPS_PROVIDER, 0,
+				0, this);
+		latestLocation = locationManager
+				.getLastKnownLocation(LocationManager.NETWORK_PROVIDER);
+
+	}
+
+	private boolean isOnline() {
+		ConnectivityManager cm = (ConnectivityManager) getSystemService(Context.CONNECTIVITY_SERVICE);
+		NetworkInfo netInfo = cm.getActiveNetworkInfo();
+		if (netInfo != null && netInfo.isConnectedOrConnecting()) {
+			return true;
+		}
+		return false;
+	}
+
+	@Override
+	public void onPause() {
+		super.onPause();
+		if (locationManager != null)
+			locationManager.removeUpdates(this);
 	}
 
 	@Override
@@ -113,16 +144,17 @@ public class NearestDepartures extends ActionBarActivity implements LocationList
 		refreshData();
 		return super.onOptionsItemSelected(item);
 	}
-	
+
 	private void refreshData() {
-		PlaceholderFragment fragment = (PlaceholderFragment) getSupportFragmentManager().getFragments().get(0);
-		
+		PlaceholderFragment fragment = (PlaceholderFragment) getSupportFragmentManager()
+				.getFragments().get(0);
+
 		fragment.fetchWeatherInfo();
 		fragment.refreshDepartures();
-		
+
 	}
 
-	/** 
+	/**
 	 * persist user settings
 	 */
 	protected void onSaveInstanceState(Bundle instanceState) {
@@ -181,14 +213,14 @@ public class NearestDepartures extends ActionBarActivity implements LocationList
 		private static final String ARG_SECTION_NUMBER = "section_number";
 		private TextView temperatureTextView, conditionTextView;
 		private WeatherInfo weatherInfo;
-		
+
 		private static List<Station> stationsNear;
 
 		private ExpandableListAdapter listAdapter;
 		private ExpandableListView expListView;
 		private List<String> listDataHeader;
 		private HashMap<String, List<String>> listDataChild;
-		
+
 		/**
 		 * Returns a new instance of this fragment for the given section number.
 		 */
@@ -200,16 +232,13 @@ public class NearestDepartures extends ActionBarActivity implements LocationList
 			return fragment;
 		}
 
-
-
 		public PlaceholderFragment() {
 		}
 
 		@Override
 		public View onCreateView(LayoutInflater inflater, ViewGroup container,
 				Bundle savedInstanceState) {
-			
-			
+
 			View rootView = inflater.inflate(
 					R.layout.fragment_nearest_departures, container, false);
 
@@ -220,38 +249,41 @@ public class NearestDepartures extends ActionBarActivity implements LocationList
 			temperatureTextView.setText("not available");
 			conditionTextView.setText("not available");
 			// get the listview
-			expListView = (ExpandableListView) rootView.findViewById(R.id.lvExp);
-			
-			//fetch weather data
+			expListView = (ExpandableListView) rootView
+					.findViewById(R.id.lvExp);
+
+			// fetch weather data
 			fetchWeatherInfo();
-			//fetch SL info
+			// fetch SL info
 			refreshDepartures();
-			
-	        
+
 			return rootView;
 		}
 
 		private void prepareListData() {
 			listDataHeader = new ArrayList<String>();
-	        listDataChild = new HashMap<String, List<String>>();
-	 
-	        // Adding  data
-	        int currPos = 0;
-	        for(Station station: stationsNear) {
-	        	listDataHeader.add(station.getName() +"(" + station.getDistance() + ")");
-	        	List<String> departures = new ArrayList<String>();
-	        	if(station.getDepartures() != null && !station.getDepartures().isEmpty()){
-	        		for(Departure dep: station.getDepartures()){
-	        			departures.add(dep.getLine() + " - " + dep.getDestination() + ": " + dep.getMinsUntilDeparture());
-	        		}
-	        	}
-	        	else {
-	        		departures.add("No departures");
-	        	}
-	        	listDataChild.put(listDataHeader.get(currPos), departures);
-	        	currPos++;
-	        }
-			
+			listDataChild = new HashMap<String, List<String>>();
+
+			// Adding data
+			int currPos = 0;
+			for (Station station : stationsNear) {
+				listDataHeader.add(station.getName() + "("
+						+ station.getDistance() + ")");
+				List<String> departures = new ArrayList<String>();
+				if (station.getDepartures() != null
+						&& !station.getDepartures().isEmpty()) {
+					for (Departure dep : station.getDepartures()) {
+						departures.add(dep.getLine() + " - "
+								+ dep.getDestination() + ": "
+								+ dep.getMinsUntilDeparture());
+					}
+				} else {
+					departures.add("No departures");
+				}
+				listDataChild.put(listDataHeader.get(currPos), departures);
+				currPos++;
+			}
+
 		}
 
 		protected class retrieve_weatherTask extends
@@ -268,101 +300,120 @@ public class NearestDepartures extends ActionBarActivity implements LocationList
 			}
 
 			protected void onPostExecute(String result) {
-				temperatureTextView.setText("Temperature:" + weatherInfo.getTemperature());
-				conditionTextView.setText("Condition:" + weatherInfo.getCondition());
+				temperatureTextView.setText("Temperature:"
+						+ weatherInfo.getTemperature());
+				conditionTextView.setText("Condition:"
+						+ weatherInfo.getCondition());
 				// 32 = sunny
-				// 34 = fair 
+				// 34 = fair
 				// 36 = hot
 				switch (weatherInfo.getConditionCode()) {
 				case 32:
-					Toast.makeText(getActivity(), "It's sunny - you should use your bike!", Toast.LENGTH_SHORT).show();
+					Toast.makeText(getActivity(),
+							"It's sunny - you should use your bike!",
+							Toast.LENGTH_SHORT).show();
 					break;
 				case 34:
-					Toast.makeText(getActivity(), "It's fair - you should use your bike!", Toast.LENGTH_SHORT).show();
+					Toast.makeText(getActivity(),
+							"It's fair - you should use your bike!",
+							Toast.LENGTH_SHORT).show();
 					break;
 				case 36:
-					Toast.makeText(getActivity(), "It's hot - you should use your bike!", Toast.LENGTH_SHORT).show();
+					Toast.makeText(getActivity(),
+							"It's hot - you should use your bike!",
+							Toast.LENGTH_SHORT).show();
 					break;
 
 				default:
-					Toast.makeText(getActivity(), "It's okay if you don't want to bike with this weather ;-)", Toast.LENGTH_SHORT).show();
+					Toast.makeText(
+							getActivity(),
+							"It's okay if you don't want to bike with this weather ;-)",
+							Toast.LENGTH_SHORT).show();
 					break;
 				}
 			}
 		}
-		
+
 		public void fetchWeatherInfo() {
 			new retrieve_weatherTask().execute();
 		}
-		
+
 		private void refreshDepartures() {
-	        Location location = locationManager.getLastKnownLocation(LocationManager.GPS_PROVIDER);
-	        if (location != null) {
-	            new GetStationsTask().execute(location);
-	        }
-	    }
+			Location location = locationManager
+					.getLastKnownLocation(LocationManager.GPS_PROVIDER);
+			if (location != null) {
+				new GetStationsTask().execute(location);
+			}
+		}
 
-	    public void setIncludeBus(boolean b) {
-	        includeBus = b;
-	        refreshDepartures();
-	    }
+		public void setIncludeBus(boolean b) {
+			includeBus = b;
+			refreshDepartures();
+		}
 
-	    private class GetStationsTask extends AsyncTask<Location, Void, List<Station>> {
-	        @Override
-	        protected List<Station> doInBackground(Location... locations) {
-	        	
-	        	stationsNear = SlResRobotService.findStationsNear(locations[0], includeBus, largeRadius);
-	            
-	            //for each station find next departure:
-	        	for(Station station: stationsNear) {
-	        		int stationId = station.getStationId();
-	        		
-	        		List<Departure> departures = SlResRobotService.getDepartureList(stationId);
+		private class GetStationsTask extends
+				AsyncTask<Location, Void, List<Station>> {
+			@Override
+			protected List<Station> doInBackground(Location... locations) {
+
+				Location locationToPass = latestLocation;
+				if (latestLocation.getTime() < locations[0].getTime()) {
+					locationToPass = locations[0];
+				}
+
+				stationsNear = SlResRobotService.findStationsNear(locations[0],
+						includeBus, largeRadius);
+
+				// for each station find next departure:
+				for (Station station : stationsNear) {
+					int stationId = station.getStationId();
+
+					List<Departure> departures = SlResRobotService
+							.getDepartureList(stationId);
 					station.setDepartures(departures);
-	        	}
-	        	
-				return stationsNear;
-	        }
+				}
 
-	        @Override
-	        protected void onPostExecute(List<Station> stationsNearcursor) {
-	        	// preparing list data
-		        prepareListData();
-		 
-		        listAdapter = new ExpandableListAdapter(getActivity(), listDataHeader, listDataChild);
-		 
-		        // setting list adapter
-		        expListView.setAdapter(listAdapter);
-		        expListView.expandGroup(0); 
-	        }
-	    }
-	    
-	    
+				return stationsNear;
+			}
+
+			@Override
+			protected void onPostExecute(List<Station> stationsNearcursor) {
+				// preparing list data
+				prepareListData();
+
+				listAdapter = new ExpandableListAdapter(getActivity(),
+						listDataHeader, listDataChild);
+
+				// setting list adapter
+				expListView.setAdapter(listAdapter);
+				expListView.expandGroup(0);
+			}
+		}
+
 	}
 
 	@Override
 	public void onLocationChanged(Location location) {
-		// TODO Auto-generated method stub
-		
+		latestLocation = location;
+
 	}
 
 	@Override
 	public void onStatusChanged(String provider, int status, Bundle extras) {
 		// TODO Auto-generated method stub
-		
+
 	}
 
 	@Override
 	public void onProviderEnabled(String provider) {
 		// TODO Auto-generated method stub
-		
+
 	}
 
 	@Override
 	public void onProviderDisabled(String provider) {
 		// TODO Auto-generated method stub
-		
+
 	}
-	
 
 }
