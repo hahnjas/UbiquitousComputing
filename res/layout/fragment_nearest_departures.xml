@@ -17,34 +17,25 @@
             android:id="@+id/tempText"
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
+            android:gravity="center"
             android:textColor="#333333"
-            android:textSize="16sp" />
+            android:textSize="20sp" />
 
         <TextView
             android:id="@+id/conditionText"
-            android:layout_width="wrap_content"
+            android:layout_width="match_parent"
             android:layout_height="wrap_content"
-            android:layout_alignParentRight="true"
             android:layout_below="@+id/tempText"
+            android:gravity="center"
             android:textColor="#333333"
-            android:textSize="16sp" />
-
-        <TextView
-            android:id="@+id/windText"
-            android:layout_width="wrap_content"
-            android:layout_height="wrap_content"
-            android:layout_alignParentRight="true"
-            android:layout_marginBottom="10dp"
-            android:paddingBottom="10dp"
-            android:textColor="#333333"
-            android:textSize="16sp" />
+            android:textSize="20sp" />
     </RelativeLayout>
 
-
-        <ExpandableListView
-            android:id="@+id/lvExp"
-            android:layout_width="match_parent"
-            android:layout_below="@+id/weatherPanel" 
-            android:layout_height="wrap_content" />
+    <ExpandableListView
+        android:id="@+id/lvExp"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:layout_below="@+id/weatherPanel"
+        android:layout_marginTop="10dp"/>
 
 </RelativeLayout>
